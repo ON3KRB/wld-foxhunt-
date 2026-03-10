@@ -1,0 +1,440 @@
+/*
+ * style.css — WLD FoxWave ARDF
+ * Aesthetic: military radio-room meets Belgian park adventure.
+ * Fonts: Orbitron (display / HUD), Share Tech Mono (data readouts).
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+/* ── Reset & Base ──────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --bg:         #050f05;
+    --panel-bg:   #0a1a0a;
+    --border:     #1a4a1a;
+    --gold:       #ffd700;
+    --green:      #4ade80;
+    --dim-green:  #2a5a2a;
+    --text-main:  #c8e8c8;
+    --text-dim:   #5a8a5a;
+    --accent-red: #ff4444;
+    --panel-right-w: 30%;
+    --panel-right-top-h: 65%;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: 'Share Tech Mono', monospace;
+    cursor: crosshair;
+}
+
+/* ── Layout ────────────────────────────────────────────────────────────────── */
+#game-wrapper {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+}
+
+/* Left: main park view */
+#panel-main {
+    flex: 0 0 70%;
+    height: 100%;
+    position: relative;
+    border-right: 2px solid var(--border);
+}
+
+#canvas-main {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* Right: two stacked panels */
+#panel-right {
+    flex: 0 0 30%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+#panel-right-top {
+    flex: 0 0 65%;
+    position: relative;
+    border-bottom: 2px solid var(--border);
+    background: var(--panel-bg);
+}
+
+#canvas-right-top {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+#panel-right-bot {
+    flex: 1;
+    background: var(--panel-bg);
+    position: relative;
+}
+
+#canvas-right-bot {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* ── Overlay base ──────────────────────────────────────────────────────────── */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 8, 0, 0.88);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+}
+
+.overlay.hidden {
+    display: none;
+}
+
+/* ── Overlay card ──────────────────────────────────────────────────────────── */
+.card {
+    background: #0a1a0a;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    padding: 40px 48px;
+    max-width: 680px;
+    width: 90%;
+    box-shadow: 0 0 60px rgba(74, 222, 128, 0.08), 0 0 0 1px #1a3a1a inset;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Card corner decorations */
+.card::before, .card::after {
+    content: '';
+    position: absolute;
+    width: 24px; height: 24px;
+    border-color: var(--gold);
+    border-style: solid;
+}
+.card::before { top: 10px; left: 10px; border-width: 2px 0 0 2px; }
+.card::after  { bottom: 10px; right: 10px; border-width: 0 2px 2px 0; }
+
+/* ── Splash screen ─────────────────────────────────────────────────────────── */
+#overlay-splash .card {
+    text-align: center;
+    max-width: 760px;
+}
+
+.splash-logo-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.splash-logo-row img {
+    height: 70px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 8px rgba(255,215,0,0.5));
+}
+
+.splash-title {
+    font-family: 'Orbitron', monospace;
+    font-weight: 900;
+    font-size: 2.6rem;
+    color: var(--gold);
+    letter-spacing: 0.04em;
+    line-height: 1;
+    margin-bottom: 6px;
+    text-shadow: 0 0 20px rgba(255,215,0,0.4);
+}
+
+.splash-subtitle {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.95rem;
+    color: var(--green);
+    letter-spacing: 0.12em;
+    margin-bottom: 28px;
+}
+
+.splash-banner {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    margin-bottom: 28px;
+    filter: brightness(0.85) saturate(1.1);
+}
+
+.splash-desc {
+    font-size: 0.92rem;
+    color: var(--text-dim);
+    line-height: 1.65;
+    margin-bottom: 28px;
+}
+
+/* ── Registration ──────────────────────────────────────────────────────────── */
+#overlay-registration .card h2 {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.4rem;
+    color: var(--gold);
+    margin-bottom: 28px;
+    letter-spacing: 0.08em;
+}
+
+.form-group {
+    margin-bottom: 18px;
+}
+
+.form-group label {
+    display: block;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+}
+
+.form-group input {
+    width: 100%;
+    background: #050f05;
+    border: 1px solid var(--dim-green);
+    border-radius: 2px;
+    padding: 10px 14px;
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 1.1rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(255,215,0,0.1);
+}
+
+.form-group input::placeholder {
+    color: var(--dim-green);
+}
+
+/* ── Briefing ──────────────────────────────────────────────────────────────── */
+#overlay-briefing .card h2 {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.3rem;
+    color: var(--gold);
+    margin-bottom: 20px;
+}
+
+.briefing-img {
+    width: 100%;
+    height: 130px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    margin-bottom: 18px;
+    filter: brightness(0.8);
+}
+
+.briefing-rules {
+    list-style: none;
+    margin-bottom: 20px;
+}
+
+.briefing-rules li {
+    padding: 4px 0;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    border-bottom: 1px solid #0d200d;
+}
+
+.briefing-rules li::before {
+    content: '▶  ';
+    color: var(--gold);
+}
+
+.freq-badge {
+    display: inline-block;
+    background: #0a2a0a;
+    border: 1px solid var(--dim-green);
+    border-radius: 3px;
+    padding: 6px 16px;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--green);
+    font-size: 1rem;
+    margin: 10px 0 18px;
+    letter-spacing: 0.08em;
+}
+
+/* ── Fox found flash ───────────────────────────────────────────────────────── */
+#fox-found-flash {
+    position: fixed;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    z-index: 200;
+    pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    opacity: 0;
+}
+
+#fox-found-flash.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+#fox-found-flash.hidden {
+    display: none;
+}
+
+.fox-found-inner {
+    background: rgba(5,15,5,0.96);
+    border: 2px solid var(--gold);
+    border-radius: 4px;
+    padding: 20px 36px;
+    text-align: center;
+    box-shadow: 0 0 30px rgba(255,215,0,0.3);
+    min-width: 240px;
+}
+
+.fox-found-icon {
+    font-size: 2.4rem;
+    margin-bottom: 4px;
+}
+
+.fox-found-code {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+}
+
+.fox-found-morse {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 1.1rem;
+    color: var(--green);
+    margin: 4px 0;
+    letter-spacing: 0.2em;
+}
+
+.fox-found-msg {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.2em;
+    margin-top: 4px;
+}
+
+/* ── Finished overlay ──────────────────────────────────────────────────────── */
+#overlay-finished .card {
+    text-align: center;
+}
+
+#overlay-finished h2 {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.5rem;
+    color: var(--gold);
+    margin-bottom: 10px;
+}
+
+/* ── Certificate overlay ───────────────────────────────────────────────────── */
+#overlay-certificate {
+    overflow-y: auto;
+    align-items: flex-start;
+    padding: 20px 0;
+}
+
+#overlay-certificate .card {
+    max-width: 940px;
+    padding: 24px;
+}
+
+#cert-canvas {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    display: block;
+    margin-bottom: 16px;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────── */
+.btn {
+    display: inline-block;
+    font-family: 'Orbitron', monospace;
+    font-weight: 700;
+    font-size: 0.9rem;
+    letter-spacing: 0.12em;
+    padding: 12px 28px;
+    border: 2px solid;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    background: transparent;
+    text-transform: uppercase;
+}
+
+.btn-primary {
+    border-color: var(--gold);
+    color: var(--gold);
+}
+.btn-primary:hover {
+    background: var(--gold);
+    color: #050f05;
+    box-shadow: 0 0 16px rgba(255,215,0,0.4);
+}
+
+.btn-green {
+    border-color: var(--green);
+    color: var(--green);
+}
+.btn-green:hover {
+    background: var(--green);
+    color: #050f05;
+    box-shadow: 0 0 16px rgba(74,222,128,0.3);
+}
+
+.btn-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 16px;
+}
+
+/* ── Utility ───────────────────────────────────────────────────────────────── */
+.text-gold   { color: var(--gold);   }
+.text-green  { color: var(--green);  }
+.text-dim    { color: var(--text-dim); }
+.mt-12       { margin-top: 12px; }
+.mb-8        { margin-bottom: 8px;  }
+.center      { text-align: center;  }
+
+/* Scanline overlay for CRT feel */
+#game-wrapper::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.05) 2px,
+        rgba(0,0,0,0.05) 4px
+    );
+    pointer-events: none;
+    z-index: 50;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar        { width: 6px; }
+::-webkit-scrollbar-track  { background: var(--bg); }
+::-webkit-scrollbar-thumb  { background: var(--dim-green); border-radius: 3px; }
