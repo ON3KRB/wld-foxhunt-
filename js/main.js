@@ -295,6 +295,9 @@ function _kd(e) {
     if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
     if(document.activeElement&&document.activeElement.tagName==='INPUT') return;
 
+    // Tab = secret mini-map toggle
+    if (e.key === 'Tab') { e.preventDefault(); window._showMiniMap = !window._showMiniMap; return; }
+
     // Hint works in all active states
     if((e.key==='?'||e.key==='/')&&[STATE.HUNTING,STATE.RECEIVER,STATE.MAP_VIEW,STATE.FINISHED].includes(gameState)){
         _showHint(); if(!audioEngine.isReady) audioEngine.init(); return;

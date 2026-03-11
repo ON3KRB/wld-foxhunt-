@@ -84,14 +84,17 @@ function renderMainView(ctx, W, H, timestamp, gameState) {
     const zBuf = new Float32Array(W);
     _renderWalls(ctx, W, H, px, py, dirX, dirY, planeX, planeY, zBuf, timestamp);
 
-    // --- Sprites (fox beacons + NPCs) ---
+    // --- Sprites (fox beacons + NPCs + tent) ---
     _renderSprites(ctx, W, H, px, py, dirX, dirY, planeX, planeY, planeMag, zBuf, timestamp);
+
+    // --- Receiver in hands (weapon-style overlay, only in RECEIVER state) ---
+    if (gameState === STATE.RECEIVER) _drawReceiverHands(ctx, W, H, timestamp);
 
     // --- HUD ---
     _drawHUD(ctx, W, H, gameState, timestamp);
 
-    // --- Mini-map ---
-    _drawMiniMap(ctx, W, H);
+    // --- Mini-map (secret: Tab key) ---
+    if (window._showMiniMap) _drawMiniMap(ctx, W, H);
 
     // --- ON4BB hint ---
     if (Player.hintVisible) _drawON4BBHint(ctx, W, H);
@@ -200,6 +203,9 @@ function _renderSprites(ctx, W, H, px, py, dirX, dirY, planeX, planeY, planeMag,
         const d = Math.hypot(npc.px-px, npc.py-py);
         sprites.push({ x:npc.px, y:npc.py, dist:d, type:'npc', npc });
     }
+    // WLD Tent (fixed position near start)
+    const tentX = CONFIG.PLAYER_START_X + 2.5, tentY = CONFIG.PLAYER_START_Y - 1.5;
+    sprites.push({ x:tentX, y:tentY, dist:Math.hypot(tentX-px,tentY-py), type:'tent' });
     // Sort back-to-front
     sprites.sort((a,b)=>b.dist-a.dist);
 
@@ -226,6 +232,8 @@ function _renderSprites(ctx, W, H, px, py, dirX, dirY, planeX, planeY, planeMag,
                 // Very close — pulsing glow
                 _drawSpriteGlow(ctx, drawX, drawY, sprW, sprH, b.color, tY, zBuf, W, t);
             }
+        } else if (sp.type === 'tent') {
+            _drawSpriteTent(ctx, drawX, drawY, sprW, sprH, sp.dist, tY, zBuf, W, timestamp);
         } else if (sp.type === 'npc' && sp.dist < 20) {
             _drawSpriteNPC(ctx, drawX, drawY, sprW, sprH, sp.npc, tY, zBuf, W, t);
         }
@@ -266,7 +274,254 @@ function _drawSpriteGlow(ctx, dx, dy, sw, sh, color, tY, zBuf, W, t) {
     ctx.textBaseline='alphabetic';
 }
 
-function _drawSpriteNPC(ctx, dx, dy, sw, sh, npc, tY, zBuf, W, t) {
+function _drawSpriteTent(ctx, dx, dy, sw, sh, dist, tY, zBuf, W, t) {
+    if (dist > 22) return;
+    const cx = dx + sw/2;
+    if (cx < -sw || cx > W + sw) return;
+    const ci = Math.floor(cx);
+    if (ci > 0 && ci < W && zBuf[ci] < tY) return; // behind wall
+
+    // Scale: tent is 2 tiles wide, 1.5 tiles tall
+    const tw = sw * 2.2, th = sh * 1.6;
+    const tx = cx - tw/2, ty = dy - th * 0.1;
+
+    // Fog factor
+    const fog = Math.min(1, dist / 14);
+    const alpha = Math.max(0.3, 1 - fog * 0.5);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Ground shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(tx + tw*0.08, ty+th*0.92, tw*0.84, th*0.08);
+
+    // Tent body (blue fabric)
+    ctx.fillStyle = '#1a3a9a';
+    ctx.beginPath();
+    ctx.moveTo(tx, ty+th*0.55);
+    ctx.lineTo(tx+tw*0.5, ty+th*0.55);
+    ctx.lineTo(tx+tw*0.5, ty+th);
+    ctx.lineTo(tx, ty+th);
+    ctx.closePath(); ctx.fill();
+
+    ctx.fillStyle = '#1a3a9a';
+    ctx.beginPath();
+    ctx.moveTo(tx+tw*0.5, ty+th*0.55);
+    ctx.lineTo(tx+tw, ty+th*0.55);
+    ctx.lineTo(tx+tw, ty+th);
+    ctx.lineTo(tx+tw*0.5, ty+th);
+    ctx.closePath(); ctx.fill();
+
+    // Door opening
+    ctx.fillStyle = '#0a1a0a';
+    ctx.fillRect(tx+tw*0.38, ty+th*0.62, tw*0.24, th*0.38);
+
+    // Tent roof/canopy (red-white striped)
+    const strips = 6;
+    for (let i = 0; i < strips; i++) {
+        ctx.fillStyle = i%2===0 ? '#cc1818' : '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(tx + i*(tw/strips),      ty+th*0.55);
+        ctx.lineTo(tx + (i+1)*(tw/strips),  ty+th*0.55);
+        ctx.lineTo(tx + tw/2 + (i+1-(strips/2))*(tw/strips*0.6), ty);
+        ctx.lineTo(tx + tw/2 + (i-(strips/2))*(tw/strips*0.6),   ty);
+        ctx.closePath(); ctx.fill();
+    }
+    // Roof ridge line
+    ctx.strokeStyle='#881010'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(tx+tw*0.5, ty); ctx.lineTo(tx+tw*0.5, ty+th*0.55); ctx.stroke();
+
+    // WLD banner on tent
+    if (dist < 12 && sw > 30) {
+        ctx.fillStyle = '#ffd700';
+        ctx.font = `bold ${Math.max(9, sw*0.18)}px "Orbitron",monospace`;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('WLD', cx, ty+th*0.75);
+    }
+
+    // Start/stop machine (little box on table in front)
+    if (dist < 8) {
+        ctx.fillStyle = '#ccc';
+        ctx.fillRect(cx-tw*0.15, ty+th*0.88, tw*0.3, th*0.08);
+        ctx.fillStyle='#ff8800';
+        ctx.font=`bold ${Math.max(6,sw*0.1)}px "Share Tech Mono",monospace`;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('STOP', cx, ty+th*0.92);
+    }
+
+    // Antenna mast on tent
+    ctx.strokeStyle='#aaa'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(tx+tw*0.85, ty+th*0.55);
+    ctx.lineTo(tx+tw*0.85, ty-th*0.4);
+    ctx.stroke();
+    // Signal rings
+    const pulse=Math.sin(t/600)*0.4+0.5;
+    [1,2,3].forEach(i=>{
+        ctx.strokeStyle=`rgba(255,215,0,${Math.max(0, pulse-i*0.15)})`;
+        ctx.lineWidth=1.5;
+        ctx.beginPath();
+        ctx.arc(tx+tw*0.85, ty-th*0.4, i*8, -Math.PI*0.7, -Math.PI*0.1);
+        ctx.stroke();
+    });
+
+    ctx.globalAlpha=1;
+    ctx.restore();
+}
+
+// ── Receiver held in player hands (FPS weapon overlay) ───────────────────────
+function _drawReceiverHands(ctx, W, H, t) {
+    // Draw in bottom-right corner, like a first-person held item
+    const bx = W * 0.55;   // left edge of the device
+    const by = H * 0.58;   // top of the device
+    const bw = W * 0.38;
+    const bh = H * 0.36;
+
+    // Bob animation when walking
+    const bobY = Math.sin(t/220) * 5;
+    const bobX = Math.cos(t/440) * 3;
+
+    ctx.save();
+    ctx.translate(bobX, bobY);
+
+    // ── HANDS ──────────────────────────────────────────────────────────────────
+    // Left hand (holding left side of device)
+    ctx.fillStyle = '#c8854a';
+    ctx.beginPath();
+    ctx.ellipse(bx - 8, by + bh*0.55, 18, 22, -0.2, 0, Math.PI*2); ctx.fill();
+    // Right hand (holding right side)
+    ctx.beginPath();
+    ctx.ellipse(bx+bw+8, by+bh*0.55, 18, 22, 0.2, 0, Math.PI*2); ctx.fill();
+    // Knuckle lines
+    ctx.strokeStyle='#a06030'; ctx.lineWidth=1;
+    [-6,-1,4].forEach(dy2=>{
+        ctx.beginPath(); ctx.arc(bx-8, by+bh*0.55+dy2, 14, 0.3, Math.PI-0.3); ctx.stroke();
+        ctx.beginPath(); ctx.arc(bx+bw+8, by+bh*0.55+dy2, 14, 0.3, Math.PI-0.3); ctx.stroke();
+    });
+
+    // ── DEVICE BODY ────────────────────────────────────────────────────────────
+    const dg = ctx.createLinearGradient(bx, by, bx, by+bh);
+    dg.addColorStop(0, '#2e2e2e');
+    dg.addColorStop(0.5, '#3a3a3a');
+    dg.addColorStop(1, '#1a1a1a');
+    ctx.fillStyle = dg;
+    ctx.roundRect(bx, by, bw, bh, 8); ctx.fill();
+    ctx.strokeStyle='#4a4a4a'; ctx.lineWidth=1.5; ctx.stroke();
+
+    // ── LCD SCREEN ─────────────────────────────────────────────────────────────
+    const scrX=bx+bw*0.1, scrY=by+bh*0.08, scrW=bw*0.55, scrH=bh*0.38;
+    ctx.fillStyle='#001800'; ctx.fillRect(scrX, scrY, scrW, scrH);
+    ctx.strokeStyle='#2a5a2a'; ctx.lineWidth=1; ctx.strokeRect(scrX,scrY,scrW,scrH);
+    ctx.fillStyle='#00ff55';
+    ctx.font=`bold ${Math.floor(scrH*0.28)}px "Share Tech Mono",monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('3.560 MHz', scrX+scrW/2, scrY+scrH*0.35);
+    ctx.fillStyle='#00cc44';
+    ctx.font=`${Math.floor(scrH*0.22)}px "Share Tech Mono",monospace`;
+    ctx.fillText('CW  80m', scrX+scrW/2, scrY+scrH*0.68);
+
+    // ── CONTROLS RIGHT SIDE ────────────────────────────────────────────────────
+    // Volume knob
+    const knobX=bx+bw*0.78, knobY=by+bh*0.22;
+    ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(knobX,knobY,bw*0.07,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#555'; ctx.lineWidth=1; ctx.stroke();
+    // Knob indicator line (rotates with time)
+    ctx.strokeStyle='#ffdd44'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(knobX,knobY);
+    ctx.lineTo(knobX+Math.cos(-0.8)*bw*0.055, knobY+Math.sin(-0.8)*bw*0.055);
+    ctx.stroke();
+
+    // Bearing LED display
+    const ledX=bx+bw*0.68, ledY=scrY+scrH+bh*0.06, ledW=bw*0.28, ledH=bh*0.16;
+    ctx.fillStyle='#001000'; ctx.fillRect(ledX,ledY,ledW,ledH);
+    ctx.strokeStyle='#1a3a1a'; ctx.lineWidth=1; ctx.strokeRect(ledX,ledY,ledW,ledH);
+    ctx.fillStyle='#44ff88';
+    ctx.font=`bold ${Math.floor(ledH*0.62)}px "Share Tech Mono",monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(String(Math.round(Player.receiverBearing)).padStart(3,'0')+'°', ledX+ledW/2, ledY+ledH/2);
+
+    // Headphone jack
+    ctx.fillStyle='#111';
+    ctx.beginPath(); ctx.arc(bx+bw*0.12, by+bh*0.85, bw*0.03, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#444'; ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle='#555';
+    ctx.font=`${Math.floor(bh*0.07)}px "Share Tech Mono",monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('🎧', bx+bw*0.12, by+bh*0.92);
+
+    // ── MAGNETIC LOOP ANTENNA (attached to top of device) ─────────────────────
+    const loopCX = bx + bw*0.35;
+    const loopCY = by - bh*0.22;
+    const loopR  = Math.min(bw*0.32, bh*0.32);
+    const loopAngle = Player.receiverBearing * Math.PI/180;
+    const dom = getDominantSignal(Player.x, Player.y, Player.receiverBearing);
+    const sig = dom ? dom.signal : 0;
+
+    ctx.save();
+    ctx.translate(loopCX, loopCY);
+    ctx.rotate(loopAngle);
+
+    // Mast
+    ctx.strokeStyle='#888'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(0, loopR+8); ctx.lineTo(0, -loopR-8); ctx.stroke();
+
+    // Signal glow
+    if (sig > 0.02) {
+        const g = ctx.createRadialGradient(0,0,loopR*0.3,0,0,loopR*1.6);
+        const a = Math.min(0.55, sig * 0.8 + Math.sin(t/180)*0.1*sig);
+        g.addColorStop(0,`rgba(255,215,0,${a})`); g.addColorStop(1,'rgba(255,215,0,0)');
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,loopR*1.6,0,Math.PI*2); ctx.fill();
+    }
+
+    // Outer copper loop
+    const cg = ctx.createLinearGradient(-loopR,0,loopR,0);
+    cg.addColorStop(0,'#7a4a10'); cg.addColorStop(0.3,'#d4822a');
+    cg.addColorStop(0.5,'#f0a040'); cg.addColorStop(0.7,'#d4822a'); cg.addColorStop(1,'#7a4a10');
+    ctx.beginPath(); ctx.arc(0,0,loopR,0,Math.PI*2);
+    ctx.strokeStyle=cg; ctx.lineWidth=6; ctx.stroke();
+    ctx.strokeStyle='rgba(255,220,150,0.3)'; ctx.lineWidth=1.5; ctx.stroke();
+
+    // Inner coupling loop
+    ctx.beginPath(); ctx.arc(0,0,loopR*0.38,0,Math.PI*2);
+    ctx.strokeStyle='#8a6030'; ctx.lineWidth=2.5; ctx.stroke();
+
+    // Tuning cap box at top
+    ctx.fillStyle='#2a2a2a';
+    ctx.fillRect(-12,-loopR-13,24,14);
+    ctx.strokeStyle='#555'; ctx.lineWidth=1; ctx.strokeRect(-12,-loopR-13,24,14);
+    ctx.fillStyle='#aaa';
+    ctx.font='7px "Share Tech Mono",monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('CAP', 0, -loopR-6);
+
+    // NULL direction dashes
+    ctx.setLineDash([3,3]);
+    ctx.strokeStyle='rgba(255,80,80,0.5)'; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.moveTo(0,-loopR*1.3); ctx.lineTo(0,loopR*1.3); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // MAX arrows when signal good
+    if (sig > 0.06) {
+        ctx.fillStyle=`rgba(74,222,128,${Math.min(0.9,sig*1.3)})`;
+        ctx.beginPath(); ctx.moveTo(-loopR*1.2,0); ctx.lineTo(-loopR*0.95,-7); ctx.lineTo(-loopR*0.95,7); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(loopR*1.2,0);  ctx.lineTo(loopR*0.95,-7);  ctx.lineTo(loopR*0.95,7);  ctx.closePath(); ctx.fill();
+    }
+
+    ctx.restore(); // end loop rotation
+
+    // N/O/Z/W labels (fixed)
+    const lblR2 = loopR + 22;
+    ctx.font='bold 10px "Orbitron",monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    [['N',-90],['O',0],['Z',90],['W',180]].forEach(([l,deg])=>{
+        const a=deg*Math.PI/180;
+        ctx.fillStyle=l==='N'?'#ff7777':'#55aa55';
+        ctx.fillText(l, loopCX+Math.cos(a)*lblR2, loopCY+Math.sin(a)*lblR2);
+    });
+
+    ctx.restore(); // end bob translate
+    ctx.textBaseline='alphabetic'; ctx.textAlign='left';
+}
     const cx=dx+sw/2;
     if(cx<0||cx>W) return;
     const ci=Math.floor(cx);

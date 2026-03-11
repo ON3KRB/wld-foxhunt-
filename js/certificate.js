@@ -224,14 +224,16 @@ function _drawGoldLine(ctx, x1, x2, y) {
 function _drawFoxStrip(ctx, W) {
     const stripY = 260, stripH = 76;
     const x1 = W * 0.12, w = W * 0.76;
-    const slotW = w / CONFIG.FOX_COUNT;
+    // Only show the foxes that were active in this game
+    const activeFoxCount = CONFIG.FOX_COUNT;
+    const slotW = w / activeFoxCount;
 
     ctx.fillStyle = 'rgba(0,15,0,0.55)';
     ctx.fillRect(x1, stripY, w, stripH);
     ctx.strokeStyle = '#2a5a2a'; ctx.lineWidth = 1;
     ctx.strokeRect(x1, stripY, w, stripH);
 
-    for (let i = 0; i < CONFIG.FOX_COUNT; i++) {
+    for (let i = 0; i < activeFoxCount; i++) {
         const code  = CONFIG.FOX_CODES[i];
         const color = CONFIG.FOX_COLORS[i];
         const cx    = x1 + i * slotW + slotW / 2;
