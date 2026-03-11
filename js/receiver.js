@@ -1,242 +1,176 @@
 /**
- * receiver.js - Receiver mode logic and compass panel rendering
+ * receiver.js - Receiver panel: compass rose + S-meter + loop antenna graphic
  * WLD FoxWave ARDF
  *
- * The compass panel is drawn on the right-top canvas when the game is in
- * STATE.RECEIVER mode.  It shows:
- *   - A compass rose that rotates with the receiver bearing
- *   - Signal strength bars (S-meter style)
- *   - The dominant fox code being received
- *   - A directional needle pointing to the strongest signal
+ * Shows a graphical portable ARDF receiver with:
+ *  - Large loop antenna graphic
+ *  - Compass rose that rotates with bearing
+ *  - S-meter signal strength bars
+ *  - Fox code being received
+ *  - 3.560 MHz ARDF 80m frequency display
  */
-
 "use strict";
 
-// ─── Compass Rose Renderer ────────────────────────────────────────────────────
+function drawReceiverPanel(ctx, W, H) {
+    if (!ctx || !W || !H) return;
 
-/**
- * Draw the receiver compass panel on the given canvas context.
- * @param {CanvasRenderingContext2D} ctx
- * @param {number} width   canvas width
- * @param {number} height  canvas height
- */
-function drawReceiverPanel(ctx, width, height) {
-    const { receiverBearing } = Player;
-    const dominant = getDominantSignal(Player.x, Player.y, receiverBearing);
+    const brg = Player.receiverBearing;
+    const dominant = getDominantSignal(Player.x, Player.y, brg);
+    const sig = dominant ? dominant.signal : 0;
 
-    // Background
     ctx.fillStyle = '#050f05';
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, 0, W, H);
 
-    // Title bar
-    ctx.fillStyle = '#0d2d0d';
-    ctx.fillRect(0, 0, width, 36);
+    // ── Title bar ──────────────────────────────────────────────────────────────
+    ctx.fillStyle = '#0a2a0a';
+    ctx.fillRect(0, 0, W, 38);
     ctx.fillStyle = '#ffd700';
-    ctx.font = 'bold 14px "Orbitron", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('⚡ 80m RECEIVER', width / 2, 22);
+    ctx.font = 'bold 13px "Orbitron", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('📡  80m ARDF RECEIVER', W/2, 19);
+    ctx.fillStyle = '#1a4a1a'; ctx.fillRect(0, 38, W, 1);
 
-    const compassCX = width  / 2;
-    const compassCY = height * 0.40;
-    const compassR  = Math.min(width, height * 0.55) * 0.38;
+    // ── Frequency display (like LCD) ───────────────────────────────────────────
+    const fdY = 46;
+    ctx.fillStyle = '#001200';
+    ctx.fillRect(10, fdY, W-20, 34);
+    ctx.strokeStyle = '#2a6a2a'; ctx.lineWidth = 1;
+    ctx.strokeRect(10, fdY, W-20, 34);
+    ctx.fillStyle = '#00ff44';
+    ctx.font = 'bold 20px "Share Tech Mono", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('3.560 MHz  CW  80m', W/2, fdY+17);
 
-    // Compass outer ring
-    _drawCompassRose(ctx, compassCX, compassCY, compassR, receiverBearing);
+    // ── Loop antenna graphic ───────────────────────────────────────────────────
+    const antCX = W/2, antCY = 135;
+    const antR  = Math.min(W*0.26, 60);
 
-    // Signal strength
-    const signalVal = dominant ? dominant.signal : 0;
-    _drawSMeter(ctx, 12, height * 0.78, width - 24, 60, signalVal);
-
-    // Received fox code display
-    _drawFoxCodeDisplay(ctx, width, height, dominant);
-
-    // Antenna beam visualisation (arc showing beam coverage)
-    _drawBeamArc(ctx, compassCX, compassCY, compassR, receiverBearing, signalVal > 0.05);
-
-    // Bearing readout
-    ctx.fillStyle = '#4ade80';
-    ctx.font = 'bold 18px "Orbitron", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(`${Math.round(receiverBearing).toString().padStart(3, '0')}°`, compassCX, compassCY + compassR + 24);
-
-    ctx.fillStyle = '#5a8a5a';
-    ctx.font = '11px "Share Tech Mono", monospace';
-    ctx.fillText('← → to rotate receiver', width / 2, height - 10);
-}
-
-// ─── Internal drawing helpers ─────────────────────────────────────────────────
-
-function _drawCompassRose(ctx, cx, cy, r, bearing) {
-    // Outer dark circle
-    ctx.beginPath();
-    ctx.arc(cx, cy, r + 6, 0, Math.PI * 2);
-    ctx.fillStyle = '#0a1f0a';
-    ctx.fill();
-    ctx.strokeStyle = '#2a6a2a';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Tick marks (every 10°), labels (every 30°)
-    const labels = { 0: 'N', 30: 'NNE', 60: 'NE', 90: 'E', 120: 'SE', 150: 'SSE',
-                     180: 'S', 210: 'SSW', 240: 'SW', 270: 'W', 300: 'NW', 330: 'NNW' };
-    const mainLabels = { 0: 'N', 90: 'E', 180: 'S', 270: 'W' };
-
+    // Rotate the loop to show bearing direction
     ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(-bearing * Math.PI / 180);  // rotate the entire rose
+    ctx.translate(antCX, antCY);
+    ctx.rotate((brg - 90) * Math.PI/180);
 
-    for (let deg = 0; deg < 360; deg += 10) {
-        const rad   = deg * Math.PI / 180;
-        const isMain   = deg % 90  === 0;
-        const isSecond = deg % 30  === 0;
-        const tickLen  = isMain ? 14 : isSecond ? 9 : 5;
-        const x1 = Math.sin(rad) * (r - tickLen);
-        const y1 = -Math.cos(rad) * (r - tickLen);
-        const x2 = Math.sin(rad) * r;
-        const y2 = -Math.cos(rad) * r;
+    // Antenna mast
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0, antR+10); ctx.lineTo(0, -antR-10); ctx.stroke();
 
+    // Loop ring (outer)
+    ctx.beginPath(); ctx.arc(0, 0, antR, 0, Math.PI*2);
+    ctx.strokeStyle = '#ffdd44'; ctx.lineWidth = 4; ctx.stroke();
+    // Loop fill tint — signal strength shown as fill opacity
+    const sigAlpha = Math.min(0.45, sig * 0.6);
+    ctx.fillStyle = `rgba(255,220,60,${sigAlpha})`;
+    ctx.beginPath(); ctx.arc(0, 0, antR, 0, Math.PI*2); ctx.fill();
+
+    // Loop spokes (Minecraft/retro style)
+    ctx.strokeStyle = 'rgba(255,220,60,0.4)'; ctx.lineWidth = 1.5;
+    for(let i=0;i<8;i++){
+        const a=i*Math.PI/4;
         ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.strokeStyle = isMain ? '#ffd700' : isSecond ? '#4ade80' : '#2a5a2a';
-        ctx.lineWidth   = isMain ? 2.5 : 1;
+        ctx.moveTo(Math.cos(a)*(antR*0.15), Math.sin(a)*(antR*0.15));
+        ctx.lineTo(Math.cos(a)*antR, Math.sin(a)*antR);
         ctx.stroke();
-
-        // Labels
-        if (mainLabels[deg] !== undefined) {
-            const lx = Math.sin(rad) * (r - 22);
-            const ly = -Math.cos(rad) * (r - 22);
-            ctx.fillStyle = '#ffd700';
-            ctx.font = `bold ${isMain ? 14 : 11}px "Orbitron", monospace`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(mainLabels[deg], lx, ly);
-        } else if (labels[deg] !== undefined) {
-            const lx = Math.sin(rad) * (r - 18);
-            const ly = -Math.cos(rad) * (r - 18);
-            ctx.fillStyle = '#4ade80';
-            ctx.font = '9px "Orbitron", monospace';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(labels[deg], lx, ly);
-        }
     }
 
-    // Inner ring
+    // Direction pointer (strongest signal direction)
+    ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-antR*0.7); ctx.stroke();
+    ctx.fillStyle = '#ff4444';
     ctx.beginPath();
-    ctx.arc(0, 0, r * 0.15, 0, Math.PI * 2);
-    ctx.fillStyle = '#1a3a1a';
-    ctx.fill();
-    ctx.strokeStyle = '#ffd700';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    ctx.moveTo(0,-antR*0.75);
+    ctx.lineTo(-6,-antR*0.55);
+    ctx.lineTo(6,-antR*0.55);
+    ctx.closePath(); ctx.fill();
+
+    // Centre hub
+    ctx.fillStyle = '#2a2a2a';
+    ctx.beginPath(); ctx.arc(0,0,8,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffdd44';
+    ctx.beginPath(); ctx.arc(0,0,4,0,Math.PI*2); ctx.fill();
 
     ctx.restore();
 
-    // Fixed North indicator needle (always points up, the rose rotates)
-    const needleLength = r * 0.72;
-    // North (red)
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx, cy - needleLength);
-    ctx.strokeStyle = '#ff4444';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    // South (dark)
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx, cy + needleLength * 0.65);
-    ctx.strokeStyle = '#555';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    // Center dot
-    ctx.beginPath();
-    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffd700';
-    ctx.fill();
-}
-
-function _drawBeamArc(ctx, cx, cy, r, bearing, hasSignal) {
-    const halfAngle = CONFIG.RECEIVER_BEAMWIDTH * Math.PI / 180;
-    const startAngle = (bearing - CONFIG.RECEIVER_BEAMWIDTH - 90) * Math.PI / 180;
-    const endAngle   = (bearing + CONFIG.RECEIVER_BEAMWIDTH - 90) * Math.PI / 180;
-
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 1.2);
-    grad.addColorStop(0, hasSignal ? 'rgba(74,222,128,0.25)' : 'rgba(74,222,128,0.08)');
-    grad.addColorStop(1, 'rgba(74,222,128,0)');
-
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r * 1.2, startAngle, endAngle);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
-}
-
-function _drawSMeter(ctx, x, y, w, h, signal) {
-    // Background
-    ctx.fillStyle = '#0a1f0a';
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = '#2a5a2a';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, w, h);
-
-    // Label
+    // Bearing text
     ctx.fillStyle = '#4ade80';
-    ctx.font = '11px "Share Tech Mono", monospace';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText('S-METER', x + 4, y + 4);
+    ctx.font = 'bold 22px "Orbitron", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(Math.round(brg)).padStart(3,'0')+'°', W/2, antCY+antR+20);
 
-    // Segment bar
-    const segments  = 20;
-    const segW      = (w - 8) / segments;
-    const lit       = Math.round(signal * segments);
-    const barY      = y + 22;
-    const barH      = h - 30;
-
-    for (let i = 0; i < segments; i++) {
-        const sx = x + 4 + i * segW;
-        const pct = i / segments;
-        let color;
-        if (pct < 0.5)       color = i < lit ? '#4ade80' : '#0d2d0d';
-        else if (pct < 0.75) color = i < lit ? '#ffd700' : '#1a1a00';
-        else                  color = i < lit ? '#ff4444' : '#2a0000';
-        ctx.fillStyle = color;
-        ctx.fillRect(sx + 1, barY, segW - 2, barH);
+    // Compass N/E/S/W labels (fixed, not rotating)
+    const lblR = antR + 32;
+    const lbls = [['N',0],['O',90],['Z',180],['W',270]];
+    ctx.font = 'bold 12px "Orbitron", monospace';
+    ctx.fillStyle = '#88cc88';
+    for(const [lbl,deg] of lbls){
+        const a=(deg-90)*Math.PI/180;
+        ctx.fillText(lbl, antCX+Math.cos(a)*lblR, antCY+Math.sin(a)*lblR);
     }
 
-    // Signal level text
-    const db = signal > 0.001 ? Math.round(20 * Math.log10(signal)) : -60;
-    ctx.fillStyle = '#ffd700';
-    ctx.font = '11px "Share Tech Mono", monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${db} dBm`, x + w - 4, y + 4);
-}
+    // ── S-Meter ────────────────────────────────────────────────────────────────
+    const smY = antCY + antR + 46;
+    _drawSMeter(ctx, 14, smY, W-28, 44, sig, dominant);
 
-function _drawFoxCodeDisplay(ctx, width, height, dominant) {
-    const y = height * 0.73;
+    // ── Fox code display ───────────────────────────────────────────────────────
+    const codeY = smY + 52;
+    ctx.fillStyle = '#0a1a0a';
+    ctx.fillRect(10, codeY, W-20, 38);
+    ctx.strokeStyle = '#1a3a1a'; ctx.lineWidth=1; ctx.strokeRect(10,codeY,W-20,38);
 
-    if (!dominant) {
-        ctx.fillStyle = '#1a3a1a';
+    if (dominant && sig > CONFIG.AUDIO_MIN_SIGNAL) {
+        ctx.fillStyle = dominant.beacon.color;
+        ctx.font = 'bold 22px "Orbitron", monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(dominant.beacon.code, W/2, codeY+13);
+        ctx.fillStyle = '#4ade80';
+        ctx.font = '11px "Share Tech Mono", monospace';
+        ctx.fillText(getFoxDisplayMorse(dominant.beacon.code), W/2, codeY+30);
+    } else {
+        ctx.fillStyle = '#2a4a2a';
         ctx.font = '12px "Share Tech Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('— NO SIGNAL —', width / 2, y - 6);
-        return;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('— geen signaal —', W/2, codeY+19);
     }
 
-    const { beacon, signal } = dominant;
-    const morse = getFoxDisplayMorse(beacon.code);
+    // ── Controls reminder ─────────────────────────────────────────────────────
+    ctx.fillStyle = '#2a5a2a';
+    ctx.font = '11px "Share Tech Mono", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('← →  antenne draaien  ·  [R] terug', W/2, H-4);
 
-    // Fox code
-    ctx.fillStyle = beacon.color;
-    ctx.font = 'bold 16px "Orbitron", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(beacon.code, width / 2, y - 6);
+    ctx.textBaseline = 'alphabetic';
+}
 
-    // Morse display
-    ctx.fillStyle = '#4ade80';
-    ctx.font = '18px "Share Tech Mono", monospace';
-    ctx.fillText(morse, width / 2, y + 14);
+// ── S-Meter ───────────────────────────────────────────────────────────────────
+function _drawSMeter(ctx, x, y, w, h, signal, dominant) {
+    ctx.fillStyle = '#060f06'; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#1a3a1a'; ctx.lineWidth=1; ctx.strokeRect(x,y,w,h);
+
+    ctx.fillStyle = '#3a5a3a';
+    ctx.font = '10px "Share Tech Mono", monospace';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('S1  S3  S5  S7  S9  +20  +40', x+4, y+3);
+
+    const barH = h*0.45, barY = y+h*0.4;
+    const bars = 28;
+    const barW = Math.floor((w-8)/bars);
+
+    for (let i=0; i<bars; i++) {
+        const bx = x+4+i*barW;
+        const filled = i < Math.floor(signal * bars);
+        if (filled) {
+            const hue = i<16?'#00cc00': i<22?'#aacc00': i<26?'#ffaa00':'#ff4400';
+            ctx.fillStyle = hue;
+        } else {
+            ctx.fillStyle = '#0a1a0a';
+        }
+        ctx.fillRect(bx, barY, barW-1, barH);
+    }
+
+    // dB readout
+    const db = signal > 0.005 ? Math.round(20*Math.log10(signal)) : -60;
+    ctx.fillStyle = signal > 0.05 ? '#00ff44' : '#3a5a3a';
+    ctx.font = 'bold 12px "Share Tech Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${db} dBm`, x+w-4, y+3);
+    ctx.textAlign = 'left';
 }

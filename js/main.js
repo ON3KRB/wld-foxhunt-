@@ -1,6 +1,13 @@
 /**
- * main.js - Game entry point, loop, state machine
+ * main.js - Game loop, state machine, input (keyboard + mouse + pointer lock)
  * WLD FoxWave ARDF
+ *
+ * FIXES:
+ *  1. audioEngine.tick() called every frame regardless of state → morse never stops
+ *  2. No audioEngine.stop() on state transitions → only on game-end
+ *  3. Pointer lock mouse for 3D look + mouse click to move forward
+ *  4. WASD keys in addition to arrow keys
+ *  5. Receiver state: init audio once, then tick() handles everything
  */
 "use strict";
 
@@ -18,12 +25,14 @@ window.addEventListener('DOMContentLoaded', () => {
     _setupCanvases();
     _setupOverlays();
     _setupKeyboard();
+    _setupMouse();
     buildParkMap();
     loadRendererAssets(() => console.log('[Assets] loaded'));
     showSplash();
     requestAnimationFrame(_loop);
 });
 
+// ── Canvas ─────────────────────────────────────────────────────────────────────
 function _setupCanvases() {
     mainCanvas     = document.getElementById('canvas-main');
     rightTopCanvas = document.getElementById('canvas-right-top');
@@ -45,44 +54,40 @@ function _resize() {
 // ── Overlays ──────────────────────────────────────────────────────────────────
 function _setupOverlays() {
     document.getElementById('btn-start-game').addEventListener('click', () => {
-        hideSplash(); showRegistration(); gameState = STATE.REGISTRATION;
+        hideSplash(); showRegistration(); gameState=STATE.REGISTRATION;
     });
 
     document.getElementById('btn-register').addEventListener('click', () => {
-        const name = document.getElementById('input-name').value.trim() || 'Hunter';
+        const name = document.getElementById('input-name').value.trim()||'Hunter';
         const cs   = document.getElementById('input-callsign').value.trim().toUpperCase();
-        const cnt  = parseInt(document.getElementById('select-fox-count').value, 10) || 5;
-        Player.name     = name + (cs ? ` (${cs})` : '');
+        const cnt  = parseInt(document.getElementById('select-fox-count').value,10)||5;
+        Player.name      = name+(cs?` (${cs})`:'');
         CONFIG.FOX_COUNT = cnt;
-        hideRegistration();
-        _initGame();
-        showBriefing();
-        gameState = STATE.BRIEFING;
+        hideRegistration(); _initGame(); showBriefing(); gameState=STATE.BRIEFING;
     });
 
-    ['input-name','input-callsign'].forEach(id =>
-        document.getElementById(id).addEventListener('keydown', e=>{
+    ['input-name','input-callsign'].forEach(id=>
+        document.getElementById(id).addEventListener('keydown',e=>{
             if(e.key==='Enter') document.getElementById('btn-register').click();
         })
     );
 
     document.getElementById('btn-hunt').addEventListener('click', _startHunting);
 
-    document.getElementById('btn-back-to-game').addEventListener('click', () => {
-        hideFinishedOverlay(); gameState = STATE.HUNTING;
+    document.getElementById('btn-back-to-game').addEventListener('click',()=>{
+        hideFinishedOverlay(); gameState=STATE.HUNTING;
     });
 
     document.getElementById('btn-download-cert').addEventListener('click', downloadCertificate);
-    document.getElementById('btn-play-again').addEventListener('click', () => {
+    document.getElementById('btn-play-again').addEventListener('click',()=>{
         ['overlay-certificate','overlay-finished'].forEach(id=>
-            document.getElementById(id).classList.add('hidden')
-        );
-        showSplash(); gameState = STATE.SPLASH;
+            document.getElementById(id).classList.add('hidden'));
+        showSplash(); gameState=STATE.SPLASH;
     });
 
-    rightTopCanvas.addEventListener('click', e => {
+    rightTopCanvas.addEventListener('click',e=>{
         if(gameState===STATE.MAP_VIEW)
-            handleMapPanelClick(e, rightTopCanvas.width, rightTopCanvas.height);
+            handleMapPanelClick(e,rightTopCanvas.width,rightTopCanvas.height);
     });
 }
 
@@ -91,196 +96,266 @@ function _initGame() {
     Player.reset();
     placeBeacons();
     initNPCs();
-    _allFoundShown = false;
-    _gameFinished  = false;
-    console.log('[Game] Fox count:', CONFIG.FOX_COUNT, 'Beacons:', getBeacons().map(b=>`${b.code}@${b.x},${b.y}`).join(' '));
+    _allFoundShown=false; _gameFinished=false;
+    console.log('[Game] fox count:',CONFIG.FOX_COUNT);
 }
 
 function _startHunting() {
     hideBriefing();
-    if (!Player.gameStartTime) Player.startTimer();
-    audioEngine.init();
-    gameState = STATE.HUNTING;
+    if(!Player.gameStartTime) Player.startTimer();
+    // Init audio once — tick() handles everything from here
+    if(!audioEngine.isReady) audioEngine.init();
+    gameState=STATE.HUNTING;
 }
 
 // ── Main loop ─────────────────────────────────────────────────────────────────
-function _loop(timestamp) {
-    _update(timestamp);
-    _render(timestamp);
+function _loop(ts) {
+    _update(ts);
+    _render(ts);
     requestAnimationFrame(_loop);
 }
 
 function _update(ts) {
-    const active = gameState===STATE.HUNTING || gameState===STATE.FINISHED;
+    const inGame=[STATE.HUNTING,STATE.RECEIVER,STATE.FINISHED,STATE.MAP_VIEW].includes(gameState);
 
-    if (active)           { _move(ts); _checkFox(); _checkFinish(); }
-    if (gameState===STATE.RECEIVER) { _audio(); _checkFox(); _checkFinish(); }
-
-    // NPC movement
-    if (active || gameState===STATE.RECEIVER) updateNPCs(ts);
+    if(inGame) {
+        _move(ts);
+        updateNPCs(ts);
+        _tickAudio();          // ← audio ticks ALWAYS in any active game state
+        _checkFox();
+        _checkFinish();
+    }
 
     // Hint timer
-    if (Player.hintVisible && ts > Player.hintTimer) {
-        Player.hintVisible = false;
-    }
+    if(Player.hintVisible && ts > Player.hintTimer) Player.hintVisible=false;
 }
 
 function _render(ts) {
     const inGame = gameState!==STATE.SPLASH && gameState!==STATE.REGISTRATION;
-    if (inGame) renderMainView(mainCtx, mainCanvas.width, mainCanvas.height, ts, gameState);
 
-    if (gameState===STATE.RECEIVER) {
-        drawReceiverPanel(rtCtx, rightTopCanvas.width, rightTopCanvas.height);
-    } else if (inGame) {
-        drawMapPanel(rtCtx, rightTopCanvas.width, rightTopCanvas.height);
+    if(inGame) {
+        renderMainView(mainCtx, mainCanvas.width, mainCanvas.height, ts, gameState);
     }
 
-    if (inGame) drawInfoPanel(rbCtx, rightBotCanvas.width, rightBotCanvas.height, gameState);
+    // Right-top: receiver compass OR map
+    if(gameState===STATE.RECEIVER) {
+        try { drawReceiverPanel(rtCtx, rightTopCanvas.width, rightTopCanvas.height); }
+        catch(e){ console.error('[Receiver panel]',e); }
+    } else if(inGame) {
+        try { drawMapPanel(rtCtx, rightTopCanvas.width, rightTopCanvas.height); }
+        catch(e){ console.error('[Map panel]',e); }
+    }
+
+    // Right-bottom: info
+    if(inGame) {
+        try { drawInfoPanel(rbCtx, rightBotCanvas.width, rightBotCanvas.height, gameState); }
+        catch(e){ console.error('[Info panel]',e); }
+    }
 }
 
-// ── Movement ──────────────────────────────────────────────────────────────────
+// ── Movement (3D) ─────────────────────────────────────────────────────────────
 function _move(ts) {
-    const k = Player.keysHeld;
-    if(k.up)    Player.tryMove('up',ts);
-    if(k.down)  Player.tryMove('down',ts);
-    if(k.left)  Player.tryMove('left',ts);
-    if(k.right) Player.tryMove('right',ts);
+    const k=Player.keysHeld;
+    const ms=CONFIG.RC_MOVE_SPEED, rs=CONFIG.RC_ROT_SPEED, ss=CONFIG.RC_STRAFE_SPEED;
+    if(k.forward)  Player.moveForward(ms);
+    if(k.back)     Player.moveForward(-ms*0.65);
+    if(k.left)     Player.rotateView(-rs);
+    if(k.right)    Player.rotateView(rs);
+    if(k.strafeL)  Player.strafe(-ss);
+    if(k.strafeR)  Player.strafe(ss);
 }
 
-// ── Audio (always use tick) ───────────────────────────────────────────────────
-function _audio() {
-    const dom = getDominantSignal(Player.x, Player.y, Player.receiverBearing);
+// ── Audio (ALWAYS tick while in game, regardless of state) ────────────────────
+function _tickAudio() {
+    if(!audioEngine.isReady) return;
+    // Always use current receiver bearing (receiver is "physically always on")
+    const dom=getDominantSignal(Player.px, Player.py, Player.receiverBearing);
+    // In receiver mode: full signal; in hunting mode: quieter background
+    const volumeMult = (gameState===STATE.RECEIVER) ? 1.0 : 0.35;
     audioEngine.tick(
         dom ? dom.beacon.code : null,
-        dom ? dom.signal      : 0
+        dom ? dom.signal * volumeMult : 0
     );
 }
 
-// ── Detection ─────────────────────────────────────────────────────────────────
+// ── Fox detection ─────────────────────────────────────────────────────────────
 function _checkFox() {
-    if (Date.now()-lastFoxFoundTime < 3000) return;
-    const found = checkFoxDetection(Player.x, Player.y);
-    if (found) {
-        lastFoxFoundTime = Date.now();
+    if(Date.now()-lastFoxFoundTime<3000) return;
+    const found=checkFoxDetection(Player.px, Player.py);
+    if(found){
+        lastFoxFoundTime=Date.now();
         showFoxFoundFlash(found);
-        console.log('[Fox]', found.code, Player.foundFoxes.size, '/', CONFIG.FOX_COUNT);
-        if (Player.allFoxesFound && !_allFoundShown) {
-            _allFoundShown = true;
-            setTimeout(showFinishedOverlay, 2800);
+        console.log('[Fox]',found.code,Player.foundFoxes.size,'/',CONFIG.FOX_COUNT);
+        if(Player.allFoxesFound&&!_allFoundShown){
+            _allFoundShown=true;
+            setTimeout(showFinishedOverlay,2800);
         }
     }
 }
 
 function _checkFinish() {
-    if (!_gameFinished && Player.allFoxesFound && Player.atStart) _finish();
+    if(!_gameFinished&&Player.allFoxesFound&&Player.atStart) _finish();
 }
 
 function _finish() {
-    if (_gameFinished) return;
-    _gameFinished = true;
+    if(_gameFinished) return;
+    _gameFinished=true;
     Player.stopTimer();
     audioEngine.stop();
     hideFinishedOverlay();
-    gameState = STATE.FINISHED;
-    setTimeout(() => { showCertificate(); gameState = STATE.CERTIFICATE; }, 800);
-    console.log('[Finish]', Player.getElapsedString());
+    gameState=STATE.FINISHED;
+    setTimeout(()=>{ showCertificate(); gameState=STATE.CERTIFICATE; },800);
+    console.log('[Finish]',Player.getElapsedString());
 }
 
-// ── ON4BB Hint ────────────────────────────────────────────────────────────────
+// ── ON4BB hint ────────────────────────────────────────────────────────────────
 function _showHint() {
-    const now = performance.now();
-    if (now - Player.lastHintTime < CONFIG.HINT_COOLDOWN_MS) {
-        Player.hintText   = 'Geduld... ON4BB is even QRX. Probeer over een momentje.';
-        Player.hintVisible = true;
-        Player.hintTimer  = now + 4000;
-        return;
+    const now=performance.now();
+    if(now-Player.lastHintTime<CONFIG.HINT_COOLDOWN_MS){
+        Player.hintText='Geduld... ON4BB is even QRX. Probeer over een momentje.';
+        Player.hintVisible=true; Player.hintTimer=now+4000; return;
     }
-    Player.lastHintTime = now;
-
-    // Find nearest unfound beacon
-    const unfound = getUnfoundBeacons();
-    if (unfound.length === 0) {
-        Player.hintText = 'Alle vossen zijn gevonden! Keer terug naar het WLD-tent!';
+    Player.lastHintTime=now;
+    const unfound=getUnfoundBeacons();
+    if(!unfound.length){
+        Player.hintText='Alle vossen gevonden! Keer terug naar het WLD-tent!';
     } else {
-        const nearest = unfound.reduce((a,b)=>
-            Math.hypot(b.x-Player.x,b.y-Player.y) < Math.hypot(a.x-Player.x,a.y-Player.y) ? b : a
-        );
-        const dx=nearest.x-Player.x, dy=nearest.y-Player.y;
-        const brg=Math.round(((Math.atan2(dx,-dy)*180/Math.PI)+360)%360);
-        const dist=Math.round(Math.hypot(dx,dy)*3); // roughly in metres
-        const compass=['Noord','Noord-Oost','Oost','Zuid-Oost','Zuid','Zuid-West','West','Noord-West'];
-        const dir=compass[Math.round(brg/45)%8];
-        Player.hintText = `Vos ${nearest.code} peiling: ${brg}° (${dir}), ca. ${dist}m. 73 de ${CONFIG.ON4BB_CALLSIGN}`;
+        const b=unfound.reduce((a,b)=>
+            Math.hypot(b.x-Player.px,b.y-Player.py)<Math.hypot(a.x-Player.px,a.y-Player.py)?b:a);
+        const dx=b.x-Player.px, dy=b.y-Player.py;
+        const brg=Math.round((Math.atan2(dx,-dy)*180/Math.PI+360)%360);
+        const dist=Math.round(Math.hypot(dx,dy)*3);
+        const dirs=['Noord','Noord-Oost','Oost','Zuid-Oost','Zuid','Zuid-West','West','Noord-West'];
+        const dir=dirs[Math.round(brg/45)%8];
+        Player.hintText=`Vos ${b.code}: peiling ${brg}° (${dir}), ca. ${dist}m. 73 de ${CONFIG.ON4BB_CALLSIGN}`;
     }
+    Player.hintVisible=true; Player.hintTimer=performance.now()+8000;
+}
 
-    Player.hintVisible = true;
-    Player.hintTimer   = now + 8000;
+// ── Mouse (pointer lock for 3D look) ─────────────────────────────────────────
+function _setupMouse() {
+    // Click main canvas → request pointer lock (FPS look)
+    mainCanvas.addEventListener('click',()=>{
+        if(!document.pointerLockElement && [STATE.HUNTING,STATE.RECEIVER,STATE.FINISHED].includes(gameState)){
+            mainCanvas.requestPointerLock();
+            if(!audioEngine.isReady) audioEngine.init();
+        }
+    });
+
+    document.addEventListener('pointerlockchange',()=>{
+        if(document.pointerLockElement===mainCanvas){
+            document.addEventListener('mousemove',_onMouseLook);
+            document.addEventListener('mousedown',_onMouseBtn);
+            document.addEventListener('mouseup',_onMouseBtnUp);
+        } else {
+            document.removeEventListener('mousemove',_onMouseLook);
+            document.removeEventListener('mousedown',_onMouseBtn);
+            document.removeEventListener('mouseup',_onMouseBtnUp);
+        }
+    });
+
+    // Also allow non-locked mouse on the canvas for basic interaction
+    mainCanvas.addEventListener('mousemove',e=>{
+        if(document.pointerLockElement) return; // handled by pointerlockchange
+        if(e.buttons===1){
+            Player.rotateView(e.movementX*0.005);
+        }
+    });
+}
+
+function _onMouseLook(e) {
+    if([STATE.HUNTING,STATE.RECEIVER,STATE.FINISHED].includes(gameState)){
+        Player.rotateView(e.movementX*0.003);
+    }
+    if(gameState===STATE.RECEIVER){
+        // In receiver mode, also tilt antenna left/right for fine control
+        Player.rotateReceiver(e.movementX*0.3);
+    }
+}
+
+function _onMouseBtn(e) {
+    if(e.button===0) Player.keysHeld.forward=true;
+    if(e.button===2) Player.keysHeld.back=true;
+}
+function _onMouseBtnUp(e) {
+    if(e.button===0) Player.keysHeld.forward=false;
+    if(e.button===2) Player.keysHeld.back=false;
 }
 
 // ── Keyboard ──────────────────────────────────────────────────────────────────
 function _setupKeyboard() {
-    document.addEventListener('keydown', _kd);
-    document.addEventListener('keyup',   _ku);
+    document.addEventListener('keydown',_kd);
+    document.addEventListener('keyup',_ku);
 }
 
 function _kd(e) {
     if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
-    if(document.activeElement && document.activeElement.tagName==='INPUT') return;
+    if(document.activeElement&&document.activeElement.tagName==='INPUT') return;
 
-    // '?' works in all active game states
-    if((e.key==='?'||e.key==='/')
-        && [STATE.HUNTING,STATE.RECEIVER,STATE.MAP_VIEW,STATE.FINISHED].includes(gameState)){
-        _showHint(); return;
+    // Hint works in all active states
+    if((e.key==='?'||e.key==='/')&&[STATE.HUNTING,STATE.RECEIVER,STATE.MAP_VIEW,STATE.FINISHED].includes(gameState)){
+        _showHint(); if(!audioEngine.isReady) audioEngine.init(); return;
     }
-    // Escape closes hint
     if(e.key==='Escape'){ Player.hintVisible=false; return; }
 
     switch(gameState){
-        case STATE.BRIEFING:  _kBriefing(e.key);     break;
+        case STATE.BRIEFING:             _kBriefing(e.key); break;
         case STATE.HUNTING:
-        case STATE.FINISHED:  _kHunting(e.key,true); break;
-        case STATE.RECEIVER:  _kReceiver(e.key);     break;
-        case STATE.MAP_VIEW:  _kMap(e.key);          break;
+        case STATE.FINISHED:             _kMove(e.key,true); _kMode(e.key); break;
+        case STATE.RECEIVER:             _kReceiver(e.key,true); break;
+        case STATE.MAP_VIEW:             _kMap(e.key); break;
     }
 }
 
 function _ku(e) {
-    const m={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right'};
-    if(m[e.key]) Player.keysHeld[m[e.key]]=false;
+    _kMove(e.key,false);
+    _kReceiver(e.key,false);
 }
 
 function _kBriefing(k){
-    switch(k.toUpperCase()){
-        case 'H': _startHunting(); break;
-        case 'R': hideBriefing(); audioEngine.init(); gameState=STATE.RECEIVER; break;
-        case 'M': hideBriefing(); gameState=STATE.MAP_VIEW; break;
-    }
+    if(k.toUpperCase()==='H'||k===' ') _startHunting();
 }
 
-function _kHunting(k,dn){
-    const m={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right'};
-    if(m[k]){Player.keysHeld[m[k]]=dn;return;}
-    if(!dn)return;
+const MOVE_MAP = {
+    ArrowUp:'forward', w:'forward', W:'forward',
+    ArrowDown:'back',  s:'back',    S:'back',
+    ArrowLeft:'left',  ArrowRight:'right',
+    a:'strafeL', A:'strafeL', d:'strafeR', D:'strafeR',
+    q:'strafeL', Q:'strafeL', e:'strafeR', E:'strafeR',
+};
+
+function _kMove(k,dn){
+    const action=MOVE_MAP[k];
+    if(action) Player.keysHeld[action]=dn;
+}
+
+function _kMode(k){
     switch(k.toUpperCase()){
-        case 'R': audioEngine.init(); gameState=STATE.RECEIVER; break;
+        case 'R':
+            Player.receiverOn = !Player.receiverOn;
+            if(!audioEngine.isReady) audioEngine.init();
+            gameState = Player.receiverOn ? STATE.RECEIVER : STATE.HUNTING;
+            break;
         case 'M': gameState=STATE.MAP_VIEW; break;
     }
 }
 
-function _kReceiver(k){
-    switch(k){
-        case 'ArrowLeft':  Player.rotateReceiver(-CONFIG.RECEIVER_ROTATE_STEP); break;
-        case 'ArrowRight': Player.rotateReceiver(+CONFIG.RECEIVER_ROTATE_STEP); break;
-        default:
-            switch(k.toUpperCase()){
-                case 'R': case 'H': audioEngine.stop(); gameState=STATE.HUNTING; break;
-                case 'M':           audioEngine.stop(); gameState=STATE.MAP_VIEW; break;
-            }
+function _kReceiver(k, dn){
+    if(k==='ArrowLeft'  && dn) Player.rotateReceiver(-CONFIG.RECEIVER_ROTATE_STEP);
+    if(k==='ArrowRight' && dn) Player.rotateReceiver(+CONFIG.RECEIVER_ROTATE_STEP);
+    if(k==='a'&&dn) Player.rotateReceiver(-CONFIG.RECEIVER_ROTATE_STEP);
+    if(k==='d'&&dn) Player.rotateReceiver(+CONFIG.RECEIVER_ROTATE_STEP);
+    if(dn){
+        switch(k.toUpperCase()){
+            case 'R': Player.receiverOn=false; gameState=STATE.HUNTING; break;
+            case 'H': Player.receiverOn=false; gameState=STATE.HUNTING; break;
+            case 'M': gameState=STATE.MAP_VIEW; break;
+        }
     }
 }
 
 function _kMap(k){
-    if(k>='0'&&k<='9'){if(Player.bearingInput.length<3)Player.bearingInput+=k;return;}
+    if(k>='0'&&k<='9'){ if(Player.bearingInput.length<3) Player.bearingInput+=k; return; }
     switch(k){
         case 'Backspace': Player.bearingInput=Player.bearingInput.slice(0,-1); break;
         case 'Enter':{
@@ -288,7 +363,10 @@ function _kMap(k){
             if(!isNaN(b)&&Player.bearingLines.length<10) Player.addBearingLine(b%360);
             Player.bearingInput=''; break;
         }
-        case 'M':case 'm':case 'H':case 'h': gameState=STATE.HUNTING; break;
-        case 'R':case 'r': audioEngine.init(); gameState=STATE.RECEIVER; break;
+        case 'M':case 'm': gameState=STATE.HUNTING; Player.receiverOn=false; break;
+        case 'H':case 'h': gameState=STATE.HUNTING; Player.receiverOn=false; break;
+        case 'R':case 'r':
+            if(!audioEngine.isReady) audioEngine.init();
+            Player.receiverOn=true; gameState=STATE.RECEIVER; break;
     }
 }
