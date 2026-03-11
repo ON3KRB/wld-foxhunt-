@@ -1,67 +1,47 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>WLD FoxWave ARDF — Vossenjacht</title>
-    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     GAME LAYOUT — Three canvases
-     Left 70%  : main park view
-     Right 30% top 65% : map / compass
-     Right 30% bot 35% : info panel
-═════════════════════════════════════════════════════════════════════════════ -->
 <div id="game-wrapper">
-    <div id="panel-main">
-        <canvas id="canvas-main"></canvas>
-    </div>
+    <div id="panel-main"><canvas id="canvas-main"></canvas></div>
     <div id="panel-right">
-        <div id="panel-right-top">
-            <canvas id="canvas-right-top"></canvas>
-        </div>
-        <div id="panel-right-bot">
-            <canvas id="canvas-right-bot"></canvas>
-        </div>
+        <div id="panel-right-top"><canvas id="canvas-right-top"></canvas></div>
+        <div id="panel-right-bot"><canvas id="canvas-right-bot"></canvas></div>
     </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     OVERLAYS
-═════════════════════════════════════════════════════════════════════════════ -->
-
-<!-- Fox-found flash (non-blocking) -->
+<!-- Fox-found flash -->
 <div id="fox-found-flash" class="hidden"></div>
 
 <!-- ── Splash ─────────────────────────────────────────────────────────────── -->
 <div id="overlay-splash" class="overlay">
     <div class="card">
         <div class="splash-logo-row">
-            <img src="assets/wld-logo.png" alt="WLD logo" />
+            <img src="assets/wld-logo.png" alt="WLD"/>
             <div>
                 <div class="splash-title">WLD FoxWave ARDF</div>
                 <div class="splash-subtitle">AMATEUR RADIO DIRECTION FINDING · VOSSENJACHT</div>
             </div>
-            <img src="assets/fox.png" alt="Fox" />
+            <img src="assets/fox.png" alt="Vos"/>
         </div>
-
-        <img src="assets/hunting.png" alt="ARDF Hunting" class="splash-banner" />
-
+        <img src="assets/hunting.png" alt="ARDF" class="splash-banner"/>
         <p class="splash-desc">
             Welkom bij de <strong class="text-gold">WLD FoxWave ARDF Vossenjacht</strong>!
-            Jij bent uitgerust met een 80m CW receiver en een richtantenne.
-            Vijf radiobakens zijn verstopt in het park — elk zendt een unieke ARDF code uit:
-            <strong class="text-green">MOE · MOI · MOS · MOH · MO5</strong>.<br><br>
-            Gebruik je receiver om de richting te peilen, zet peilingen op de kaart en
-            vind alle 5 vossen. Keer daarna terug naar het WLD-tent om je tijd te registreren!
+            Gebruik je 80m CW receiver en richtantenne om de verborgen radiobakens te vinden.
+            Peil de morse — <strong class="text-green">MOE · MOI · MOS · MOH · MO5</strong> —
+            teken peilijnen op de kaart, en vind alle vossen!<br/><br/>
+            Druk op <strong class="text-gold">[?]</strong> voor een hint via ON4BB op
+            <strong class="text-green">145.225 MHz</strong>.
         </p>
-
         <div class="btn-row">
-            <button id="btn-start-game" class="btn btn-primary">▶  SPEL STARTEN</button>
+            <button id="btn-start-game" class="btn btn-primary">▶&nbsp; SPEL STARTEN</button>
         </div>
-
         <p class="text-dim center mt-12" style="font-size:0.8rem;">
             WLD Radio Amateur Club &nbsp;·&nbsp; 80m CW ARDF &nbsp;·&nbsp; Vossenjacht Simulator
         </p>
@@ -72,25 +52,34 @@
 <div id="overlay-registration" class="overlay hidden">
     <div class="card">
         <h2>📋 INSCHRIJVING VOSSENJACHT</h2>
-        <p class="text-dim mb-8">Meld je aan bij het WLD-tent. De start/stop machine staat klaar.</p>
-
-        <img src="assets/start-stop.png" alt="WLD Start/Stop" class="briefing-img" />
+        <p class="text-dim mb-8">Meld je aan bij het WLD-tent.</p>
+        <img src="assets/start-stop.png" alt="WLD Start/Stop" class="briefing-img"/>
 
         <div class="form-group">
             <label>NAAM / ROEPNAAM</label>
-            <input id="input-name" type="text" placeholder="bv. Jan Janssen" maxlength="40" autocomplete="off" />
+            <input id="input-name" type="text" placeholder="bv. Jan Janssen" maxlength="40" autocomplete="off"/>
         </div>
         <div class="form-group">
-            <label>ZENDAMATEUR CALLSIGN (optioneel)</label>
-            <input id="input-callsign" type="text" placeholder="bv. ON3KC" maxlength="12" autocomplete="off" style="text-transform:uppercase;" />
+            <label>CALLSIGN (optioneel)</label>
+            <input id="input-callsign" type="text" placeholder="bv. ON3KC" maxlength="12"
+                   autocomplete="off" style="text-transform:uppercase;"/>
+        </div>
+        <div class="form-group">
+            <label>AANTAL VOSSEN TE ZOEKEN</label>
+            <select id="select-fox-count" style="width:100%;background:#050f05;border:1px solid #2a5a2a;
+                border-radius:2px;padding:10px 14px;color:#4ade80;font-family:'Share Tech Mono',monospace;
+                font-size:1.1rem;outline:none;">
+                <option value="3">3 vossen (beginners / snelle run)</option>
+                <option value="5" selected>5 vossen (volledig ARDF)</option>
+            </select>
         </div>
         <p class="text-dim" style="font-size:0.82rem;margin-bottom:18px;">
             Frequentie: <span class="text-gold">3.510 – 3.600 MHz</span> &nbsp;·&nbsp;
-            80m band &nbsp;·&nbsp; CW (morse) &nbsp;·&nbsp; Max 25W
+            80m &nbsp;·&nbsp; CW &nbsp;·&nbsp;
+            Hint: <span class="text-green">145.225 MHz / ON4BB</span>
         </p>
-
         <div class="btn-row">
-            <button id="btn-register" class="btn btn-primary">✔  INSCHRIJVEN &amp; KLAAR MAKEN</button>
+            <button id="btn-register" class="btn btn-primary">✔&nbsp; INSCHRIJVEN</button>
         </div>
     </div>
 </div>
@@ -98,44 +87,41 @@
 <!-- ── Briefing ───────────────────────────────────────────────────────────── -->
 <div id="overlay-briefing" class="overlay hidden">
     <div class="card">
-        <h2>🏕  WLD FOXWAVE ARDF — BRIEFING</h2>
-
-        <div class="freq-badge">📡 &nbsp; 80m · 3.510–3.600 MHz · CW · 5 BAKENS</div>
-
+        <h2>🏕&nbsp; WLD FOXWAVE ARDF — BRIEFING</h2>
+        <div class="freq-badge">📡 &nbsp;80m · 3.510–3.600 MHz · CW</div>
         <ul class="briefing-rules">
-            <li>Druk <strong class="text-gold">H</strong> om te starten met zoeken (timer start)</li>
-            <li>Druk <strong class="text-gold">R</strong> om de receiver te activeren (kompasroos + audio)</li>
-            <li>Gebruik <strong class="text-gold">← →</strong> om je antenne te richten in receiver-modus</li>
-            <li>Druk <strong class="text-gold">M</strong> voor de kaart — voer peilingen in met cijfertoetsen + Enter</li>
-            <li>Gebruik <strong class="text-gold">↑ ↓ ← →</strong> om te wandelen op de paden</li>
-            <li>Kom <strong class="text-gold">dicht bij een baken</strong> om het te vinden (gele gloed)</li>
-            <li>Vind alle 5 vossen en keer terug naar het <strong class="text-gold">WLD-tent</strong>!</li>
+            <li>Druk <strong class="text-gold">H</strong> — start wandelen (timer start)</li>
+            <li>Druk <strong class="text-gold">R</strong> — activeer receiver + kompas</li>
+            <li>Gebruik <strong class="text-gold">← →</strong> — draai je antenne in receiver-modus</li>
+            <li>Hoe luider het morse, hoe juister je richting!</li>
+            <li>Druk <strong class="text-gold">M</strong> — open kaart, voer peilingen in</li>
+            <li>Gebruik <strong class="text-gold">↑ ↓ ← →</strong> — wandel langs de paden</li>
+            <li>Druk <strong class="text-gold">?</strong> — vraag hint bij ON4BB (VHF 145.225 MHz)</li>
+            <li>Vind alle vossen, keer terug naar het <strong class="text-gold">WLD-tent</strong>!</li>
         </ul>
-
         <p class="text-dim" style="font-size:0.85rem;margin-bottom:14px;">
-            Bakens zenden: <strong class="text-green">MOE · MOI · MOS · MOH · MO5</strong>
-            &nbsp;(standaard ARDF morse codes)
+            Morse codes: <strong class="text-green">MOE · MOI · MOS · MOH · MO5</strong>
         </p>
-
         <div class="btn-row">
-            <button id="btn-hunt" class="btn btn-primary">🦊  START VOSSENJACHT!</button>
+            <button id="btn-hunt" class="btn btn-primary">🦊&nbsp; START VOSSENJACHT!</button>
         </div>
     </div>
 </div>
 
-<!-- ── Finished (all foxes found, return prompt) ──────────────────────────── -->
+<!-- ── Finished ───────────────────────────────────────────────────────────── -->
 <div id="overlay-finished" class="overlay hidden">
-    <div class="card">
+    <div class="card" style="text-align:center;">
         <h2>🎉 ALLE VOSSEN GEVONDEN!</h2>
         <p class="text-gold" style="font-family:'Orbitron',monospace;font-size:1.1rem;margin:12px 0;">
-            Keer terug naar het WLD-tent om te finishen!
+            Keer terug naar het WLD-tent!
         </p>
         <p class="text-dim" style="margin-bottom:16px;">
-            Loop terug naar het <strong class="text-gold">gouden startpunt</strong> links­onder op de kaart.<br>
-            De start/stop machine registreert je eindtijd automatisch.
+            Loop terug naar het <strong class="text-gold">gouden startpunt</strong>
+            links­onder op de kaart.<br/>
+            De start/stop machine registreert je eindtijd.
         </p>
         <div class="btn-row">
-            <button id="btn-back-to-game" class="btn btn-green">⬅  TERUG NAAR SPEL</button>
+            <button id="btn-back-to-game" class="btn btn-green">⬅&nbsp; TERUG NAAR SPEL</button>
         </div>
     </div>
 </div>
@@ -148,27 +134,25 @@
         </h2>
         <canvas id="cert-canvas"></canvas>
         <div class="btn-row">
-            <button id="btn-download-cert" class="btn btn-primary">⬇  DOWNLOAD PNG</button>
-            <button id="btn-play-again"    class="btn btn-green">🔄  OPNIEUW SPELEN</button>
+            <button id="btn-download-cert" class="btn btn-primary">⬇&nbsp; DOWNLOAD PNG</button>
+            <button id="btn-play-again"    class="btn btn-green">🔄&nbsp; OPNIEUW SPELEN</button>
         </div>
     </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     SCRIPTS — load order matters (config → helpers → game modules → main)
-═════════════════════════════════════════════════════════════════════════════ -->
+<!-- Scripts — load order: config → morse → audio → map → player → beacons → npc → receiver → renderer → mapView → ui → certificate → main -->
 <script src="js/config.js"></script>
 <script src="js/morse.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/map.js"></script>
 <script src="js/player.js"></script>
 <script src="js/beacons.js"></script>
+<script src="js/npc.js"></script>
 <script src="js/receiver.js"></script>
-<script src="js/renderer3d.js"></script>
+<script src="js/renderer.js"></script>
 <script src="js/mapView.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/certificate.js"></script>
 <script src="js/main.js"></script>
-
 </body>
 </html>
