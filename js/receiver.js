@@ -1,176 +1,262 @@
 /**
- * receiver.js - Receiver panel: compass rose + S-meter + loop antenna graphic
+ * receiver.js - ARDF receiver panel with magnetic loop antenna
  * WLD FoxWave ARDF
  *
- * Shows a graphical portable ARDF receiver with:
- *  - Large loop antenna graphic
- *  - Compass rose that rotates with bearing
- *  - S-meter signal strength bars
- *  - Fox code being received
- *  - 3.560 MHz ARDF 80m frequency display
+ * Visual: a handheld 80m ARDF receiver device drawn in the right-top panel.
+ * The magnetic loop rotates with the bearing. Signal strength drives glow + S-meter.
  */
 "use strict";
 
 function drawReceiverPanel(ctx, W, H) {
     if (!ctx || !W || !H) return;
 
-    const brg = Player.receiverBearing;
+    const brg     = Player.receiverBearing;
     const dominant = getDominantSignal(Player.x, Player.y, brg);
-    const sig = dominant ? dominant.signal : 0;
+    const sig      = dominant ? dominant.signal : 0;
 
+    // ── Background ─────────────────────────────────────────────────────────────
     ctx.fillStyle = '#050f05';
     ctx.fillRect(0, 0, W, H);
 
     // ── Title bar ──────────────────────────────────────────────────────────────
     ctx.fillStyle = '#0a2a0a';
-    ctx.fillRect(0, 0, W, 38);
+    ctx.fillRect(0, 0, W, 36);
     ctx.fillStyle = '#ffd700';
-    ctx.font = 'bold 13px "Orbitron", monospace';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('📡  80m ARDF RECEIVER', W/2, 19);
-    ctx.fillStyle = '#1a4a1a'; ctx.fillRect(0, 38, W, 1);
-
-    // ── Frequency display (like LCD) ───────────────────────────────────────────
-    const fdY = 46;
-    ctx.fillStyle = '#001200';
-    ctx.fillRect(10, fdY, W-20, 34);
-    ctx.strokeStyle = '#2a6a2a'; ctx.lineWidth = 1;
-    ctx.strokeRect(10, fdY, W-20, 34);
-    ctx.fillStyle = '#00ff44';
-    ctx.font = 'bold 20px "Share Tech Mono", monospace';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('3.560 MHz  CW  80m', W/2, fdY+17);
-
-    // ── Loop antenna graphic ───────────────────────────────────────────────────
-    const antCX = W/2, antCY = 135;
-    const antR  = Math.min(W*0.26, 60);
-
-    // Rotate the loop to show bearing direction
-    ctx.save();
-    ctx.translate(antCX, antCY);
-    ctx.rotate((brg - 90) * Math.PI/180);
-
-    // Antenna mast
-    ctx.strokeStyle = '#888'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(0, antR+10); ctx.lineTo(0, -antR-10); ctx.stroke();
-
-    // Loop ring (outer)
-    ctx.beginPath(); ctx.arc(0, 0, antR, 0, Math.PI*2);
-    ctx.strokeStyle = '#ffdd44'; ctx.lineWidth = 4; ctx.stroke();
-    // Loop fill tint — signal strength shown as fill opacity
-    const sigAlpha = Math.min(0.45, sig * 0.6);
-    ctx.fillStyle = `rgba(255,220,60,${sigAlpha})`;
-    ctx.beginPath(); ctx.arc(0, 0, antR, 0, Math.PI*2); ctx.fill();
-
-    // Loop spokes (Minecraft/retro style)
-    ctx.strokeStyle = 'rgba(255,220,60,0.4)'; ctx.lineWidth = 1.5;
-    for(let i=0;i<8;i++){
-        const a=i*Math.PI/4;
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(a)*(antR*0.15), Math.sin(a)*(antR*0.15));
-        ctx.lineTo(Math.cos(a)*antR, Math.sin(a)*antR);
-        ctx.stroke();
-    }
-
-    // Direction pointer (strongest signal direction)
-    ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-antR*0.7); ctx.stroke();
-    ctx.fillStyle = '#ff4444';
-    ctx.beginPath();
-    ctx.moveTo(0,-antR*0.75);
-    ctx.lineTo(-6,-antR*0.55);
-    ctx.lineTo(6,-antR*0.55);
-    ctx.closePath(); ctx.fill();
-
-    // Centre hub
-    ctx.fillStyle = '#2a2a2a';
-    ctx.beginPath(); ctx.arc(0,0,8,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#ffdd44';
-    ctx.beginPath(); ctx.arc(0,0,4,0,Math.PI*2); ctx.fill();
-
-    ctx.restore();
-
-    // Bearing text
-    ctx.fillStyle = '#4ade80';
-    ctx.font = 'bold 22px "Orbitron", monospace';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(String(Math.round(brg)).padStart(3,'0')+'°', W/2, antCY+antR+20);
-
-    // Compass N/E/S/W labels (fixed, not rotating)
-    const lblR = antR + 32;
-    const lbls = [['N',0],['O',90],['Z',180],['W',270]];
     ctx.font = 'bold 12px "Orbitron", monospace';
-    ctx.fillStyle = '#88cc88';
-    for(const [lbl,deg] of lbls){
-        const a=(deg-90)*Math.PI/180;
-        ctx.fillText(lbl, antCX+Math.cos(a)*lblR, antCY+Math.sin(a)*lblR);
-    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('📡  80m ARDF ONTVANGER', W/2, 18);
+    ctx.fillStyle = '#1a4a1a';
+    ctx.fillRect(0, 36, W, 1);
+
+    // ── Frequency LCD ──────────────────────────────────────────────────────────
+    ctx.fillStyle = '#001400';
+    ctx.fillRect(10, 44, W-20, 32);
+    ctx.strokeStyle = '#2a6a2a'; ctx.lineWidth = 1;
+    ctx.strokeRect(10, 44, W-20, 32);
+    ctx.fillStyle = '#00ff55';
+    ctx.font = 'bold 18px "Share Tech Mono", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('3.560 MHz  CW  80m', W/2, 60);
+
+    // ── Draw the magnetic loop antenna ────────────────────────────────────────
+    _drawMagLoop(ctx, W, H, brg, sig);
+
+    // ── Bearing readout ────────────────────────────────────────────────────────
+    const brgY = H * 0.63;
+    ctx.fillStyle = '#4ade80';
+    ctx.font = 'bold 26px "Orbitron", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(Math.round(brg)).padStart(3,'0') + '°', W/2, brgY);
+
+    ctx.fillStyle = '#2a6a2a';
+    ctx.font = '10px "Share Tech Mono", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('PEILING', W/2, brgY + 16);
 
     // ── S-Meter ────────────────────────────────────────────────────────────────
-    const smY = antCY + antR + 46;
-    _drawSMeter(ctx, 14, smY, W-28, 44, sig, dominant);
+    const smY = H * 0.70;
+    _drawSMeter(ctx, 10, smY, W-20, 46, sig, dominant);
 
-    // ── Fox code display ───────────────────────────────────────────────────────
-    const codeY = smY + 52;
-    ctx.fillStyle = '#0a1a0a';
-    ctx.fillRect(10, codeY, W-20, 38);
-    ctx.strokeStyle = '#1a3a1a'; ctx.lineWidth=1; ctx.strokeRect(10,codeY,W-20,38);
+    // ── Fox code readout ───────────────────────────────────────────────────────
+    const codeY = smY + 54;
+    ctx.fillStyle = '#090f09';
+    ctx.fillRect(10, codeY, W-20, 36);
+    ctx.strokeStyle = '#1a3a1a'; ctx.lineWidth = 1;
+    ctx.strokeRect(10, codeY, W-20, 36);
 
     if (dominant && sig > CONFIG.AUDIO_MIN_SIGNAL) {
         ctx.fillStyle = dominant.beacon.color;
-        ctx.font = 'bold 22px "Orbitron", monospace';
+        ctx.font = 'bold 20px "Orbitron", monospace';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(dominant.beacon.code, W/2, codeY+13);
+        ctx.fillText(dominant.beacon.code, W/2, codeY + 12);
         ctx.fillStyle = '#4ade80';
         ctx.font = '11px "Share Tech Mono", monospace';
-        ctx.fillText(getFoxDisplayMorse(dominant.beacon.code), W/2, codeY+30);
+        ctx.fillText(getFoxDisplayMorse(dominant.beacon.code), W/2, codeY + 27);
     } else {
         ctx.fillStyle = '#2a4a2a';
-        ctx.font = '12px "Share Tech Mono", monospace';
+        ctx.font = '11px "Share Tech Mono", monospace';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('— geen signaal —', W/2, codeY+19);
+        ctx.fillText('— geen signaal —', W/2, codeY + 18);
     }
 
-    // ── Controls reminder ─────────────────────────────────────────────────────
-    ctx.fillStyle = '#2a5a2a';
-    ctx.font = '11px "Share Tech Mono", monospace';
+    // ── Footer ─────────────────────────────────────────────────────────────────
+    ctx.fillStyle = '#1a3a1a';
+    ctx.font = '10px "Share Tech Mono", monospace';
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    ctx.fillText('← →  antenne draaien  ·  [R] terug', W/2, H-4);
+    ctx.fillText('← →  antenne draaien  ·  R = terug', W/2, H - 3);
+
+    ctx.textBaseline = 'alphabetic';
+}
+
+// ── Magnetic Loop Antenna ─────────────────────────────────────────────────────
+function _drawMagLoop(ctx, W, H, bearing, sig) {
+
+    const cx  = W / 2;
+    const cy  = H * 0.365;
+    const R   = Math.min(W * 0.34, H * 0.22);   // loop radius
+    const now = performance.now();
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // ── Rotating part (the loop assembly) ─────────────────────────────────────
+    // Bearing 0° = loop broadside faces North = min signal from North
+    // ARDF loop: NULL in axis direction, MAX broadside = bearing + 90°
+    const loopAngle = bearing * Math.PI / 180;
+    ctx.rotate(loopAngle);
+
+    // Capacitor tuning box at top of loop
+    ctx.fillStyle = '#2a2a2a';
+    ctx.roundRect(-16, -R - 14, 32, 16, 3);
+    if (ctx.roundRect) ctx.fill(); else { ctx.fillRect(-16,-R-14,32,16); }
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.stroke();
+    // Capacitor label
+    ctx.fillStyle = '#aaa';
+    ctx.font = '8px "Share Tech Mono", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('CAP', 0, -R - 6);
+
+    // ── Glow (signal-reactive) ─────────────────────────────────────────────────
+    if (sig > 0.01) {
+        const pulse = 0.3 + 0.25 * Math.sin(now / 180);
+        const glowAlpha = Math.min(0.55, sig * 0.7 + pulse * sig * 0.4);
+        const glow = ctx.createRadialGradient(0, 0, R*0.3, 0, 0, R*1.5);
+        glow.addColorStop(0, `rgba(255,215,0,${glowAlpha})`);
+        glow.addColorStop(1, 'rgba(255,215,0,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(0, 0, R*1.5, 0, Math.PI*2); ctx.fill();
+    }
+
+    // ── Outer loop frame (thick pipe) ─────────────────────────────────────────
+    // Shadow
+    ctx.beginPath(); ctx.arc(2, 3, R, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 9; ctx.stroke();
+
+    // Main copper tube
+    const tubeGrad = ctx.createLinearGradient(-R, 0, R, 0);
+    tubeGrad.addColorStop(0,   '#7a4a10');
+    tubeGrad.addColorStop(0.3, '#d4822a');
+    tubeGrad.addColorStop(0.5, '#f0a040');
+    tubeGrad.addColorStop(0.7, '#d4822a');
+    tubeGrad.addColorStop(1,   '#7a4a10');
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI*2);
+    ctx.strokeStyle = tubeGrad; ctx.lineWidth = 8; ctx.stroke();
+
+    // Highlight sheen on top of tube
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(255,220,150,0.35)'; ctx.lineWidth = 2; ctx.stroke();
+
+    // ── Inner loop (coupling loop) — smaller ring inside ───────────────────────
+    const innerR = R * 0.38;
+    ctx.beginPath(); ctx.arc(0, 0, innerR, 0, Math.PI*2);
+    ctx.strokeStyle = '#8a6030'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,200,100,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+
+    // ── Feed cable from inner loop to bottom ──────────────────────────────────
+    ctx.strokeStyle = '#444'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, innerR); ctx.lineTo(0, R + 14); ctx.stroke();
+
+    // ── Vertical support mast (behind loop, drawn before loop) ────────────────
+    ctx.strokeStyle = '#666'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(0, -R - 14); ctx.lineTo(0, R + 14); ctx.stroke();
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, -R - 14); ctx.lineTo(0, R + 14); ctx.stroke();
+
+    // ── NULL direction indicator (axis = min signal, shown as dashed line) ─────
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = 'rgba(255,80,80,0.6)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, -R*1.35); ctx.lineTo(0, R*1.35); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // ── MAX signal direction indicator (broadside, shown as arrow) ────────────
+    if (sig > 0.05) {
+        const arrowAlpha = Math.min(0.9, sig * 1.2);
+        ctx.fillStyle = `rgba(74,222,128,${arrowAlpha})`;
+        ctx.strokeStyle = `rgba(74,222,128,${arrowAlpha})`;
+        ctx.lineWidth = 2;
+        // Left arrow
+        ctx.beginPath(); ctx.moveTo(-R*1.25, 0); ctx.lineTo(-R*1.05, -8); ctx.lineTo(-R*1.05, 8); ctx.closePath(); ctx.fill();
+        // Right arrow
+        ctx.beginPath(); ctx.moveTo(R*1.25, 0); ctx.lineTo(R*1.05, -8); ctx.lineTo(R*1.05, 8); ctx.closePath(); ctx.fill();
+    }
+
+    ctx.restore();
+
+    // ── Compass N/O/Z/W labels (fixed, not rotating) ──────────────────────────
+    const lblR = R + 42;
+    const lbls = [['N', -90], ['O', 0], ['Z', 90], ['W', 180]];
+    ctx.font = 'bold 11px "Orbitron", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const [lbl, deg] of lbls) {
+        const a = deg * Math.PI / 180;
+        ctx.fillStyle = lbl === 'N' ? '#ff6666' : '#6aaa6a';
+        ctx.fillText(lbl, cx + Math.cos(a)*lblR, cy + Math.sin(a)*lblR);
+    }
+
+    // ── Receiver body (handheld device below antenna) ─────────────────────────
+    const devX = cx - 50, devY = cy + R + 18, devW = 100, devH = 28;
+    const dg = ctx.createLinearGradient(devX, devY, devX, devY+devH);
+    dg.addColorStop(0, '#2a2a2a'); dg.addColorStop(1, '#181818');
+    ctx.fillStyle = dg;
+    ctx.roundRect(devX, devY, devW, devH, 4);
+    ctx.fill();
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1; ctx.stroke();
+
+    // Headphone jack
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(devX+8, devY+devH/2, 4, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#555'; ctx.lineWidth=1; ctx.stroke();
+
+    // Volume knob
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(devX+devW-10, devY+devH/2, 6, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#666'; ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.beginPath(); ctx.arc(devX+devW-10, devY+devH/2, 2, 0, Math.PI*2); ctx.fill();
+
+    // Band label
+    ctx.fillStyle = '#4ade80';
+    ctx.font = 'bold 10px "Share Tech Mono", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('80m ARDF RX', cx, devY + devH/2);
 
     ctx.textBaseline = 'alphabetic';
 }
 
 // ── S-Meter ───────────────────────────────────────────────────────────────────
 function _drawSMeter(ctx, x, y, w, h, signal, dominant) {
-    ctx.fillStyle = '#060f06'; ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = '#1a3a1a'; ctx.lineWidth=1; ctx.strokeRect(x,y,w,h);
+    ctx.fillStyle = '#060f06';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#1a3a1a'; ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, w, h);
 
-    ctx.fillStyle = '#3a5a3a';
-    ctx.font = '10px "Share Tech Mono", monospace';
+    // Scale labels
+    ctx.fillStyle = '#3a6a3a';
+    ctx.font = '9px "Share Tech Mono", monospace';
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillText('S1  S3  S5  S7  S9  +20  +40', x+4, y+3);
 
-    const barH = h*0.45, barY = y+h*0.4;
+    const barH = Math.floor(h * 0.42);
+    const barY = y + h * 0.38;
     const bars = 28;
-    const barW = Math.floor((w-8)/bars);
+    const barW = Math.floor((w - 8) / bars);
 
-    for (let i=0; i<bars; i++) {
-        const bx = x+4+i*barW;
+    for (let i = 0; i < bars; i++) {
+        const bx = x + 4 + i * barW;
         const filled = i < Math.floor(signal * bars);
         if (filled) {
-            const hue = i<16?'#00cc00': i<22?'#aacc00': i<26?'#ffaa00':'#ff4400';
-            ctx.fillStyle = hue;
+            ctx.fillStyle = i<16 ? '#00cc00' : i<22 ? '#aacc00' : i<26 ? '#ffaa00' : '#ff4400';
         } else {
             ctx.fillStyle = '#0a1a0a';
         }
-        ctx.fillRect(bx, barY, barW-1, barH);
+        ctx.fillRect(bx, barY, barW - 1, barH);
     }
 
-    // dB readout
-    const db = signal > 0.005 ? Math.round(20*Math.log10(signal)) : -60;
-    ctx.fillStyle = signal > 0.05 ? '#00ff44' : '#3a5a3a';
-    ctx.font = 'bold 12px "Share Tech Mono", monospace';
-    ctx.textAlign = 'right';
+    // dBm readout
+    const db = signal > 0.005 ? Math.round(20 * Math.log10(signal)) : -99;
+    ctx.fillStyle = signal > 0.04 ? '#00ff44' : '#3a5a3a';
+    ctx.font = 'bold 11px "Share Tech Mono", monospace';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
     ctx.fillText(`${db} dBm`, x+w-4, y+3);
     ctx.textAlign = 'left';
 }

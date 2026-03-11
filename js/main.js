@@ -165,16 +165,19 @@ function _move(ts) {
     if(k.strafeR)  Player.strafe(ss);
 }
 
-// ── Audio (ALWAYS tick while in game, regardless of state) ────────────────────
+// ── Audio — ONLY in RECEIVER mode ────────────────────────────────────────────
 function _tickAudio() {
     if(!audioEngine.isReady) return;
-    // Always use current receiver bearing (receiver is "physically always on")
-    const dom=getDominantSignal(Player.px, Player.py, Player.receiverBearing);
-    // In receiver mode: full signal; in hunting mode: quieter background
-    const volumeMult = (gameState===STATE.RECEIVER) ? 1.0 : 0.35;
+    if(gameState !== STATE.RECEIVER) {
+        // Outside receiver mode: silence always
+        audioEngine.tick(null, 0);
+        return;
+    }
+    // In receiver mode: signal strength = volume
+    const dom = getDominantSignal(Player.px, Player.py, Player.receiverBearing);
     audioEngine.tick(
         dom ? dom.beacon.code : null,
-        dom ? dom.signal * volumeMult : 0
+        dom ? dom.signal      : 0
     );
 }
 
